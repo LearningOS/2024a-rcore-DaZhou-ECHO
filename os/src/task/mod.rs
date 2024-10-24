@@ -32,19 +32,25 @@ pub use context::TaskContext;
 /// Most of `TaskManager` are hidden behind the field `inner`, to defer
 /// borrowing checks to runtime. You can see examples on how to use `inner` in
 /// existing functions on `TaskManager`.
+/// 
+// use crate::timer::get_time_ms;
+// use crate::timer::get_time;
+use crate::syscall::process::TaskInfo;
+/// task 
 pub struct TaskManager {
     /// total number of tasks
     num_app: usize,
     /// use inner value to get mutable access
     inner: UPSafeCell<TaskManagerInner>,
+    // task_info:TaskInfo,
 }
 
 /// Inner of Task Manager
 pub struct TaskManagerInner {
     /// task list
-    tasks: [TaskControlBlock; MAX_APP_NUM],
+    pub tasks: [TaskControlBlock; MAX_APP_NUM],
     /// id of current `Running` task
-    current_task: usize,
+    pub current_task: usize,
 }
 
 lazy_static! {
@@ -54,6 +60,7 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            task_info: TaskInfo::new(),
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -121,6 +128,11 @@ impl TaskManager {
         if let Some(next) = self.find_next_task() {
             let mut inner = self.inner.exclusive_access();
             let current = inner.current_task;
+
+            // // 记录当前任务的运行时间
+            // let us = get_time() / 100000000000; // 获取当前时间（微秒）
+            // inner.tasks[current].task_info.time += us; // 更新当前任务时间
+
             inner.tasks[next].task_status = TaskStatus::Running;
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
@@ -134,6 +146,34 @@ impl TaskManager {
         } else {
             panic!("All applications completed!");
         }
+    }
+
+
+     /// 获取指定任务的引用
+     pub fn get_task(&self, task_id: usize) -> TaskControlBlock {
+        let inner = self.inner.exclusive_access();
+        // print!("get_task\n");
+        inner.tasks[task_id].clone()  // 返回 TaskControlBlock 的拷贝
+    }
+
+    /// 返回 TaskControlBlock 的拷贝
+    pub fn get_current_task(&self) -> TaskControlBlock {
+        let inner = self.inner.exclusive_access();
+        // print!("get_current_task\n");
+        inner.tasks[inner.current_task].clone()  // 返回 TaskControlBlock 的拷贝
+    }
+
+    /// 获取当前任务的 ID
+    pub fn get_current_task_id(&self) -> usize {
+        let inner = self.inner.exclusive_access();
+        // print!("get_id\n");
+        inner.current_task
+    }
+
+    /// 获取任务管理器的可变访问权限
+    pub fn get_inner(&self) -> &UPSafeCell<TaskManagerInner> {
+        // print!("get_inner\n");
+        &self.inner
     }
 }
 

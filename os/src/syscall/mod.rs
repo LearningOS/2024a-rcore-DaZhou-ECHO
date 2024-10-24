@@ -20,16 +20,27 @@ const SYSCALL_YIELD: usize = 124;
 const SYSCALL_GET_TIME: usize = 169;
 /// taskinfo syscall
 const SYSCALL_TASK_INFO: usize = 410;
+// use crate::{
+//     config::MAX_SYSCALL_NUM,
+//     task::TASK_MANAGER,
+// };
 
 mod fs;
-mod process;
-
+pub mod process;
+use crate::task::TASK_MANAGER;
 use fs::*;
 use process::*;
 /// handle syscall exception with `syscall_id` and other arguments
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
+    let current_task_id = TASK_MANAGER.get_current_task_id();
+    // 先获取可变借用，然后在作用域内使用它
+    {
+        let mut inner = TASK_MANAGER.get_inner().exclusive_access();
+        inner.tasks[current_task_id].task_info.syscall_times[syscall_id] += 1;
+    } // 确保借用在此处结束
+
     match syscall_id {
-        SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
+        SYSCALL_WRITE => {sys_write(args[0], args[1] as *const u8, args[2])},
         SYSCALL_EXIT => sys_exit(args[0] as i32),
         SYSCALL_YIELD => sys_yield(),
         SYSCALL_GET_TIME => sys_get_time(args[0] as *mut TimeVal, args[1]),
