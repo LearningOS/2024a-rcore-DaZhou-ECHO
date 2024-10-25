@@ -6,7 +6,6 @@
 3.支持程序主动放弃处理器，实现yield系统调用
 4.以时间片轮转算法调度用户程序，实现资源的时分复用
 
-
 # 问答题：
 ## 1.正确进入 U 态后，程序的特征还应有：使用 S 态特权指令，访问 S 态寄存器后会报错。 请同学们可以自行测试这些内容（运行 三个 bad 测例 (ch2b_bad_*.rs) ）， 描述程序出错行为，同时注意注明你使用的 sbi 及其版本。
 [kernel] PageFault in application, bad addr = 0x0, bad instruction = 0x804003a4, kernel killed it.
