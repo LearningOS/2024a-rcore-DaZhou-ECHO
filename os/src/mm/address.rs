@@ -2,6 +2,9 @@
 use super::PageTableEntry;
 use crate::config::{PAGE_SIZE, PAGE_SIZE_BITS};
 use core::fmt::{self, Debug, Formatter};
+use crate::task::current_user_token;
+use crate::mm::page_table::PageTable;
+
 /// physical address
 const PA_WIDTH_SV39: usize = 56;
 const VA_WIDTH_SV39: usize = 39;
@@ -113,6 +116,21 @@ impl VirtAddr {
     pub fn aligned(&self) -> bool {
         self.page_offset() == 0
     }
+
+    /// VirtAddr -> PhyAddr
+    pub fn virtaddr_convert_phyaddr(&self) -> Option<PhysAddr>{
+        let offset = self.page_offset();
+        let vpn =self.ceil();
+        let ppn = PageTable::from_token(current_user_token())
+        .translate(vpn)
+        .map(|entry| entry.ppn());
+
+        if let Some(ppn) = ppn{
+            Some(PhysAddr::combine(ppn, offset))
+        }else{
+            None
+        }
+    }
 }
 impl From<VirtAddr> for VirtPageNum {
     fn from(v: VirtAddr) -> Self {
@@ -126,6 +144,12 @@ impl From<VirtPageNum> for VirtAddr {
     }
 }
 impl PhysAddr {
+
+    /// combine
+    pub fn combine(ppn: PhysPageNum , offset:usize) -> Self {
+        PhysAddr((ppn.0 << PAGE_SIZE_BITS) | offset)
+    }
+
     /// Get the (floor) physical page number
     pub fn floor(&self) -> PhysPageNum {
         PhysPageNum(self.0 / PAGE_SIZE)
@@ -174,6 +198,7 @@ impl PhysAddr {
     pub fn get_mut<T>(&self) -> &'static mut T {
         unsafe { (self.0 as *mut T).as_mut().unwrap() }
     }
+    
 }
 impl PhysPageNum {
     /// Get the reference of page table(array of ptes)

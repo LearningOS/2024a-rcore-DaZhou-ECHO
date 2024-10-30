@@ -1,11 +1,13 @@
 //! Process management syscalls
-use crate::{
-    config::MAX_SYSCALL_NUM,
-    task::{
-        change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
-    },
-};
 
+use crate::{
+    config::MAX_SYSCALL_NUM, mm::VirtAddr ,task::{
+        change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
+    }, 
+    // timer::{get_time, get_time_ms},mm::KERNEL_SPACE,
+    timer::get_time_us
+    // mm:: {PhysPageNum, VirtPageNum}
+};
 #[repr(C)]
 #[derive(Debug)]
 pub struct TimeVal {
@@ -41,10 +43,29 @@ pub fn sys_yield() -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
-    -1
+    if ts.is_null(){return -1;}
+    
+    let a = ts as usize;
+    let va = VirtAddr::from(a);
+
+    if let Some(phys_addr) = va.virtaddr_convert_phyaddr() {
+        let us = get_time_us();
+        let kernel_ts = phys_addr.0 as *mut TimeVal;
+        unsafe {
+            *kernel_ts = TimeVal {
+                sec: us / 1_000_000,
+                usec: us % 1_000_000,
+            };
+        }
+        0
+    } else {
+        -1
+    }
+  
 }
+
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
@@ -57,6 +78,7 @@ pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
 // YOUR JOB: Implement mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
+
     -1
 }
 
