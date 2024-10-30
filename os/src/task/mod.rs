@@ -21,7 +21,7 @@ use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
-
+use core::cell::RefMut;
 pub use context::TaskContext;
 
 /// The task manager, where all the tasks are managed.
@@ -152,6 +152,12 @@ impl TaskManager {
         } else {
             panic!("All applications completed!");
         }
+    }
+
+
+    /// current id
+    pub fn get_current_taskid() -> usize{
+        TASK_MANAGER.inner.exclusive_access().current_task
     }
 }
 

@@ -2,7 +2,7 @@
 
 use crate::{
     config::MAX_SYSCALL_NUM, mm::VirtAddr ,task::{
-        change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
+        change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, TASK_MANAGER,
     }, 
     // timer::{get_time, get_time_ms},mm::KERNEL_SPACE,
     timer::get_time_us
@@ -72,6 +72,9 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
 pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
     trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
+    
+    
+    
     -1
 }
 
