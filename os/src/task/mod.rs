@@ -12,7 +12,8 @@
 mod context;
 mod switch;
 #[allow(clippy::module_inception)]
-mod task;
+pub mod task;
+use crate::config::MAX_SYSCALL_NUM;
 
 use crate::loader::{get_app_data, get_num_app};
 use crate::sync::UPSafeCell;
@@ -21,9 +22,9 @@ use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
-use core::cell::RefMut;
+// use core::cell::RefMut;
+// use core::clone;
 pub use context::TaskContext;
-
 /// The task manager, where all the tasks are managed.
 ///
 /// Functions implemented on `TaskManager` deals with all task state transitions
@@ -33,19 +34,20 @@ pub use context::TaskContext;
 /// Most of `TaskManager` are hidden behind the field `inner`, to defer
 /// borrowing checks to runtime. You can see examples on how to use `inner` in
 /// existing functions on `TaskManager`.
+
 pub struct TaskManager {
     /// total number of tasks
-    num_app: usize,
+   pub  num_app: usize,
     /// use inner value to get mutable access
-    inner: UPSafeCell<TaskManagerInner>,
+    pub inner: UPSafeCell<TaskManagerInner>,
 }
 
 /// The task manager inner in 'UPSafeCell'
-struct TaskManagerInner {
+pub struct TaskManagerInner {
     /// task list
-    tasks: Vec<TaskControlBlock>,
+    pub tasks: Vec<TaskControlBlock>,
     /// id of current `Running` task
-    current_task: usize,
+    pub current_task: usize,
 }
 
 lazy_static! {
@@ -153,11 +155,30 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
-
-
+    /// 1
+    pub fn get_inner(&self) -> core::cell::RefMut<TaskManagerInner> {
+        // 尝试获取对 inner 的可变引用
+        self.inner.exclusive_access()
+    }
     /// current id
-    pub fn get_current_taskid() -> usize{
+    pub fn get_current_taskid(&self) -> usize{
         TASK_MANAGER.inner.exclusive_access().current_task
+    }
+
+    /// get sys call times
+    pub fn get_syscall_times(&self) -> [u32; MAX_SYSCALL_NUM]{
+        TASK_MANAGER.get_inner().tasks[TASK_MANAGER.get_current_taskid()].sys_call_time
+    }
+    /// get start time
+    pub fn get_start_time(&self) -> usize{
+        TASK_MANAGER.get_inner().tasks[TASK_MANAGER.get_current_taskid()].start_time
+    }
+}
+
+impl TaskManagerInner {
+    /// 根据任务 ID 获取对应的任务
+    pub fn get_task(&self, task_id: usize) -> Option<&TaskControlBlock> {
+        self.tasks.get(task_id)
     }
 }
 

@@ -1,9 +1,12 @@
 //! Types related to task management
 use super::TaskContext;
 use crate::config::TRAP_CONTEXT_BASE;
+use crate::config::MAX_SYSCALL_NUM;
+
 use crate::mm::{
     kernel_stack_position, MapPermission, MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE,
 };
+use crate::timer::get_time_ms;
 use crate::trap::{trap_handler, TrapContext};
 
 /// The task control block (TCB) of a task.
@@ -17,7 +20,7 @@ pub struct TaskControlBlock {
     /// Application address space
     pub memory_set: MemorySet,
 
-    /// The phys page number of trap context
+    /// The phys page number of trap contextvpn
     pub trap_cx_ppn: PhysPageNum,
 
     /// The size(top addr) of program which is loaded from elf file
@@ -28,6 +31,12 @@ pub struct TaskControlBlock {
 
     /// Program break
     pub program_brk: usize,
+
+    /// time
+    pub start_time :usize,
+
+    /// sys call time
+    pub sys_call_time : [u32; MAX_SYSCALL_NUM],
 }
 
 impl TaskControlBlock {
@@ -63,6 +72,8 @@ impl TaskControlBlock {
             base_size: user_sp,
             heap_bottom: user_sp,
             program_brk: user_sp,
+            start_time:get_time_ms(),
+            sys_call_time: [0;500],
         };
         // prepare TrapContext in user space
         let trap_cx = task_control_block.get_trap_cx();

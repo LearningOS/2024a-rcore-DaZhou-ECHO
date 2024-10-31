@@ -5,7 +5,7 @@ use crate::{
         change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, TASK_MANAGER,
     }, 
     // timer::{get_time, get_time_ms},mm::KERNEL_SPACE,
-    timer::get_time_us
+    timer::{get_time_ms, get_time_us},
     // mm:: {PhysPageNum, VirtPageNum}
 };
 #[repr(C)]
@@ -70,14 +70,26 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 /// YOUR JOB: Finish sys_task_info to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
-pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
+pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
-    
-    
-    
-    -1
-}
+    if ti.is_null(){return  -1;}
+    // let task_id = TASK_MANAGER.get_current_taskid();
+    // let inner = TASK_MANAGER.get_inner();
+    // inner.tasks[task_id]
+    // let task = &inner.tasks[task_id];
+    if let Some(pa) = VirtAddr::from(ti as usize).virtaddr_convert_phyaddr(){
+        let task_info_ptr=pa.0 as *mut TaskInfo;
+        unsafe{
+            (*task_info_ptr).status = TaskStatus::Running;
+            (*task_info_ptr).time = get_time_ms() - TASK_MANAGER.get_start_time();
+            (*task_info_ptr).syscall_times = TASK_MANAGER.get_syscall_times();
+        }
 
+    }else{
+        return -1;
+    }
+    0
+}
 // YOUR JOB: Implement mmap.
 pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
