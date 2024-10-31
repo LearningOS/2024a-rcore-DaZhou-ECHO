@@ -144,7 +144,6 @@ impl From<VirtPageNum> for VirtAddr {
     }
 }
 impl PhysAddr {
-
     /// combine
     pub fn combine(ppn: PhysPageNum , offset:usize) -> Self {
         PhysAddr((ppn.0 << PAGE_SIZE_BITS) | offset)

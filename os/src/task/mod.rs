@@ -155,23 +155,37 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
-    /// 1
-    pub fn get_inner(&self) -> core::cell::RefMut<TaskManagerInner> {
-        // 尝试获取对 inner 的可变引用
-        self.inner.exclusive_access()
-    }
-    /// current id
-    pub fn get_current_taskid(&self) -> usize{
-        TASK_MANAGER.inner.exclusive_access().current_task
-    }
 
-    /// get sys call times
-    pub fn get_syscall_times(&self) -> [u32; MAX_SYSCALL_NUM]{
-        TASK_MANAGER.get_inner().tasks[TASK_MANAGER.get_current_taskid()].sys_call_time
+        // /// current id
+    // pub fn get_current_taskid(&self) -> usize{
+    //     self.inner.exclusive_access().current_task
+    // }
+
+    // /// 1
+    // pub fn get_inner(&self) -> core::cell::RefMut<TaskManagerInner> {
+    //     // 尝试获取对 inner 的可变引用
+    //     self.inner.exclusive_access()
+    // }
+    /// 1
+    pub fn get_syscall_times(&self) -> [u32; MAX_SYSCALL_NUM] {
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].sys_call_time
     }
-    /// get start time
-    pub fn get_start_time(&self) -> usize{
-        TASK_MANAGER.get_inner().tasks[TASK_MANAGER.get_current_taskid()].start_time
+    /// 2
+    pub fn get_start_time(&self) -> usize {
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].start_time
+    }
+    /// 1
+    pub fn sys_times(&self,id :usize){
+        let mut inner = self.inner.exclusive_access();
+        let cu = inner.current_task;
+        inner.tasks[cu].sys_call_time[id]+=1;
+    }
+    /// 1
+    pub fn get_statue(&self) -> TaskStatus{
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].task_status
     }
 }
 
@@ -228,4 +242,47 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+
+
+
+
+use crate::mm::{VirtAddr,VPNRange};
+/// 1
+pub fn unmap_consecutive_area(start: usize, len: usize) -> isize {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+
+    let current = inner.current_task;
+    let start_vpn = VirtAddr::from(start).floor();
+    let end_vpn = VirtAddr::from(start + len).ceil();
+    let vpns = VPNRange::new(start_vpn, end_vpn);
+    for vpn in vpns {
+        if let Some(pte) = inner.tasks[current].memory_set.translate(vpn) {
+            if !pte.is_valid() {
+                return -1;
+            }
+            inner.tasks[current].memory_set.get_page_table().unmap(vpn);
+        } else {
+            // Also unmapped if no PTE found
+            return -1;
+        }
+    }
+    0
+}
+use crate::mm::MapPermission;
+use crate::mm::VirtPageNum;
+use crate::mm::PageTableEntry;
+
+/// 2
+pub fn create_new_map_area(start_va: VirtAddr, end_va: VirtAddr, perm: MapPermission) {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].memory_set.insert_framed_area(start_va, end_va, perm);
+}
+/// 2
+pub fn get_current_task_page_table(vpn: VirtPageNum) -> Option<PageTableEntry> {
+    let inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].memory_set.translate(vpn)
 }
