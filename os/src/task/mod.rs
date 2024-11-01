@@ -155,17 +155,6 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
-
-        // /// current id
-    // pub fn get_current_taskid(&self) -> usize{
-    //     self.inner.exclusive_access().current_task
-    // }
-
-    // /// 1
-    // pub fn get_inner(&self) -> core::cell::RefMut<TaskManagerInner> {
-    //     // 尝试获取对 inner 的可变引用
-    //     self.inner.exclusive_access()
-    // }
     /// 1
     pub fn get_syscall_times(&self) -> [u32; MAX_SYSCALL_NUM] {
         let inner = self.inner.exclusive_access();
@@ -244,12 +233,8 @@ pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
 }
 
-
-
-
-
 use crate::mm::{VirtAddr,VPNRange};
-/// 1
+/// delete start~start + len
 pub fn unmap_consecutive_area(start: usize, len: usize) -> isize {
     let mut inner = TASK_MANAGER.inner.exclusive_access();
 
@@ -262,6 +247,7 @@ pub fn unmap_consecutive_area(start: usize, len: usize) -> isize {
             if !pte.is_valid() {
                 return -1;
             }
+            // unmap is a function from pagetable
             inner.tasks[current].memory_set.get_page_table().unmap(vpn);
         } else {
             // Also unmapped if no PTE found

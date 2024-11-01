@@ -33,7 +33,7 @@ sys_get_time重点在地址的转换，ts的转换？由于地址的问题
     pub fn combine(ppn: PhysPageNum , offset:usize) -> Self {
         PhysAddr((ppn.0 << PAGE_SIZE_BITS) | offset)
     }
-我超，还真是，物理地址 = 物理页号*页大小 + 偏移量
+物理地址 = 物理页号*页大小 + 偏移量
 
 let kernel_ts = phys_addr.0 as *mut TimeVal;
 把这里的地址进行填充
@@ -48,3 +48,20 @@ task_info函数
 
 对于mmap函数
 start起始地址，len长度，port权限
+
+发现只是对于代码的基础上进行简单的封装，很多基础功能已经实现了
+
+simplerange
+可以对于进行简单的包裹，可以实现for语法糖等操作，这里主要体现在遍历上面
+
+insert_framed_area插入一个物理块
+主要用在map上面
+
+之前想过PTE如何和物理页号结合，发现已经有现成的函数可供使用了 insert_framed_area
+后面把Mapareapush即可
+
+MemorySet 中的push以及map的逻辑需要谨慎了解
+
+对于物理页帧有一个问题
+你要清楚哪个是新建
+哪个是只是取到想要的地址上的数据进行修改
