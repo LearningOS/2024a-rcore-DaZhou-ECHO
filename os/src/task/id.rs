@@ -29,6 +29,7 @@ impl RecycleAllocator {
             self.current - 1
         }
     }
+    #[allow(unused)]
     pub fn dealloc(&mut self, id: usize) {
         assert!(id < self.current);
         assert!(
@@ -53,7 +54,12 @@ pub struct PidHandle(pub usize);
 impl Drop for PidHandle {
     fn drop(&mut self) {
         //println!("drop pid {}", self.0);
-        PID_ALLOCATOR.exclusive_access().dealloc(self.0);
+        // PID_ALLOCATOR.exclusive_access().dealloc(self.0);
+        let a = PID_ALLOCATOR.exclusive_access().current;
+        let b = KSTACK_ALLOCATOR.exclusive_access().current;
+        let c =self.0;
+        print!("\nKernelStack-------PID:{a}---------KSTASK:{b}---------self.0:{c}");
+
     }
 }
 
@@ -91,7 +97,11 @@ impl Drop for KernelStack {
         KERNEL_SPACE
             .exclusive_access()
             .remove_area_with_start_vpn(kernel_stack_bottom_va.into());
-        KSTACK_ALLOCATOR.exclusive_access().dealloc(self.0);
+        // KSTACK_ALLOCATOR.exclusive_access().dealloc(self.0);
+        let a = PID_ALLOCATOR.exclusive_access().current;
+        let b = KSTACK_ALLOCATOR.exclusive_access().current;
+        let c =self.0;
+        print!("\nKernelStack-------PID:{a}---------KSTASK:{b}---------self.0:{c}\n");
     }
 }
 
@@ -113,5 +123,16 @@ impl KernelStack {
     pub fn get_top(&self) -> usize {
         let (_, kernel_stack_top) = kernel_stack_position(self.0);
         kernel_stack_top
+    }
+    /// 1
+    pub fn new(pid_handle: &PidHandle) -> Self {
+        let pid = pid_handle.0;
+        let (kernel_stack_bottom, kernel_stack_top) = kernel_stack_position(pid);
+        KERNEL_SPACE.exclusive_access().insert_framed_area(
+            kernel_stack_bottom.into(),
+            kernel_stack_top.into(),
+            MapPermission::R | MapPermission::W,
+        );
+        KernelStack (pid_handle.0)
     }
 }

@@ -21,7 +21,8 @@ pub struct TaskControlBlock {
     pub kernel_stack: KernelStack,
 
     /// Mutable
-    inner: UPSafeCell<TaskControlBlockInner>,
+    pub inner: UPSafeCell<TaskControlBlockInner>,
+
 }
 
 impl TaskControlBlock {
@@ -35,7 +36,8 @@ impl TaskControlBlock {
         inner.memory_set.token()
     }
 }
-
+use crate::task::MAX_SYSCALL_NUM;
+///1
 pub struct TaskControlBlockInner {
     /// The physical page number of the frame where the trap context is placed
     pub trap_cx_ppn: PhysPageNum,
@@ -68,8 +70,21 @@ pub struct TaskControlBlockInner {
 
     /// Program break
     pub program_brk: usize,
-}
+    ///
+    pub user_time: usize,
+    ///
+    pub kernel_time: usize,
+    ///
+    pub checkpoint: usize, // record time point
+    ///
+    pub syscall_times:[u32; MAX_SYSCALL_NUM],
 
+    ///
+    pub stride: u64,
+    ///
+    pub priority: u64,
+}
+use crate::timer::get_time_ms;
 impl TaskControlBlockInner {
     /// get the trap context
     pub fn get_trap_cx(&self) -> &'static mut TrapContext {
@@ -79,11 +94,23 @@ impl TaskControlBlockInner {
     pub fn get_user_token(&self) -> usize {
         self.memory_set.token()
     }
-    fn get_status(&self) -> TaskStatus {
+    ///
+    pub fn get_status(&self) -> TaskStatus {
         self.task_status
     }
+    ///
     pub fn is_zombie(&self) -> bool {
         self.get_status() == TaskStatus::Zombie
+    }
+    /// update checkpoint and return the diff time
+    pub fn update_checkpoint(&mut self) -> usize {
+        let prev_point = self.checkpoint;
+        self.checkpoint = get_time_ms();
+        return self.checkpoint - prev_point;
+    }
+    ///
+    pub fn set_priority(&mut self, level: u64) {
+        self.priority = level;
     }
 }
 
@@ -118,6 +145,14 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: user_sp,
                     program_brk: user_sp,
+
+                    user_time:0,
+                    syscall_times:[0;MAX_SYSCALL_NUM],
+                    kernel_time:0,
+                    checkpoint:0,
+
+                    stride:0,
+                    priority:16,
                 })
             },
         };
@@ -191,6 +226,14 @@ impl TaskControlBlock {
                     exit_code: 0,
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
+
+                    user_time:0,
+                    syscall_times:[0;MAX_SYSCALL_NUM],
+                    kernel_time:0,
+                    checkpoint:0,
+
+                    stride:0,
+                    priority:016
                 })
             },
         });

@@ -19,7 +19,7 @@ mod manager;
 mod processor;
 mod switch;
 #[allow(clippy::module_inception)]
-mod task;
+pub mod task;
 
 use crate::loader::get_app_data_by_name;
 use alloc::sync::Arc;
@@ -114,4 +114,63 @@ lazy_static! {
 ///Add init process to the manager
 pub fn add_initproc() {
     add_task(INITPROC.clone());
+}
+
+
+/// 1
+pub fn get_current_task_status() -> TaskStatus {
+    let task = current_task().unwrap();
+    let task_inner = task.inner_exclusive_access();
+    task_inner.get_status()
+}
+use crate::config::MAX_SYSCALL_NUM;
+/// 2
+pub fn get_current_task_syscall_times() -> [u32; MAX_SYSCALL_NUM] {
+    let task = current_task().unwrap();
+    let task_inner = task.inner_exclusive_access();
+    task_inner.syscall_times
+}
+
+/// 3
+pub fn get_current_task_time_cost() -> usize {
+    let task = current_task().unwrap();
+    let task_inner = task.inner_exclusive_access();
+    task_inner.user_time + task_inner.kernel_time
+}
+use crate::mm::VirtPageNum;
+use crate::mm::PageTableEntry;
+///4
+pub fn get_current_task_page_table(vpn: VirtPageNum) -> Option<PageTableEntry> {
+let task = current_task().unwrap();
+let task_inner = task.inner_exclusive_access();
+task_inner.memory_set.translate(vpn)
+}
+use crate::mm::VirtAddr;
+use crate::mm::MapPermission;
+/// 5
+pub fn create_new_map_area(start_va: VirtAddr, end_va: VirtAddr, perm: MapPermission) {
+    let task = current_task().unwrap();
+    let mut task_inner = task.inner_exclusive_access();
+    task_inner.memory_set.insert_framed_area(start_va, end_va, perm);
+}
+use crate::mm::VPNRange;
+/// 6
+pub fn unmap_consecutive_area(start: usize, len: usize) -> isize {
+    let task = current_task().unwrap();
+    let mut task_inner = task.inner_exclusive_access();
+    let start_vpn = VirtAddr::from(start).floor();
+    let end_vpn = VirtAddr::from(start + len).ceil();
+    let vpns = VPNRange::new(start_vpn, end_vpn);
+    for vpn in vpns {
+        if let Some(pte) = task_inner.memory_set.translate(vpn) {
+            if !pte.is_valid() {
+                return -1;
+            }
+            task_inner.memory_set.get_page_table().unmap(vpn);
+        } else {
+            // Also unmapped if no PTE found
+            return -1;
+        }
+    }
+    0
 }

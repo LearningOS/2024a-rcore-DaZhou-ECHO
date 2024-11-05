@@ -300,7 +300,13 @@ impl MemorySet {
             false
         }
     }
+
+    ///4
+    pub fn get_page_table(&mut self) -> &mut PageTable {
+    self.page_table.borrow_mut()
 }
+}
+use core::borrow::BorrowMut;
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {
     vpn_range: VPNRange,
