@@ -18,8 +18,11 @@ use lazy_static::*;
 /// A wrapper around a filesystem inode
 /// to implement File trait atop
 pub struct OSInode {
+    ///
     readable: bool,
+    ///
     writable: bool,
+    ///
     inner: UPSafeCell<OSInodeInner>,
 }
 /// The OS inode inner in 'UPSafeCell'
@@ -55,6 +58,7 @@ impl OSInode {
 }
 
 lazy_static! {
+    ///
     pub static ref ROOT_INODE: Arc<Inode> = {
         let efs = EasyFileSystem::open(BLOCK_DEVICE.clone());
         Arc::new(EasyFileSystem::root_inode(&efs))
@@ -155,4 +159,19 @@ impl File for OSInode {
         }
         total_write_size
     }
+
+
+}
+
+impl OSInode {
+            /// get current node id
+            pub fn get_inode_id(&self) -> u64 {
+                let inner = self.inner.exclusive_access();
+                inner.inode.block_id as u64
+            }
+            /// get inode 'block_id' and 'block_offset'
+            pub fn get_inode_pos(&self) -> (usize, usize) {
+                let inner = self.inner.exclusive_access();
+                (inner.inode.block_id, inner.inode.block_offset)
+            }
 }

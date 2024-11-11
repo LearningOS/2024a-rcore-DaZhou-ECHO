@@ -1,7 +1,4 @@
-//! Task pid implementation.
-//!
-//! Assign PID to the process here. At the same time, the position of the application KernelStack
-//! is determined according to the PID.
+//!Implementation of [`PidAllocator`]
 
 use crate::config::{KERNEL_STACK_SIZE, PAGE_SIZE, TRAMPOLINE};
 use crate::mm::{MapPermission, VirtAddr, KERNEL_SPACE};
@@ -9,45 +6,47 @@ use crate::sync::UPSafeCell;
 use alloc::vec::Vec;
 use lazy_static::*;
 
-pub struct RecycleAllocator {
+/// Pid Allocator struct
+pub struct PidAllocator {
     current: usize,
     recycled: Vec<usize>,
 }
 
-impl RecycleAllocator {
+impl PidAllocator {
+    /// Create an empty `PidAllocator`
     pub fn new() -> Self {
-        RecycleAllocator {
+        PidAllocator {
             current: 0,
             recycled: Vec::new(),
         }
     }
-    pub fn alloc(&mut self) -> usize {
-        if let Some(id) = self.recycled.pop() {
-            id
+    /// Allocate a pid
+    pub fn alloc(&mut self) -> PidHandle {
+        if let Some(pid) = self.recycled.pop() {
+            PidHandle(pid)
         } else {
             self.current += 1;
-            self.current - 1
+            PidHandle(self.current - 1)
         }
     }
-    pub fn dealloc(&mut self, id: usize) {
-        assert!(id < self.current);
+    /// Recycle a pid
+    pub fn dealloc(&mut self, pid: usize) {
+        assert!(pid < self.current);
         assert!(
-            !self.recycled.iter().any(|i| *i == id),
-            "id {} has been deallocated!",
-            id
+            !self.recycled.iter().any(|ppid| *ppid == pid),
+            "pid {} has been deallocated!",
+            pid
         );
-        self.recycled.push(id);
+        self.recycled.push(pid);
     }
 }
 
 lazy_static! {
-    static ref PID_ALLOCATOR: UPSafeCell<RecycleAllocator> =
-        unsafe { UPSafeCell::new(RecycleAllocator::new()) };
-    static ref KSTACK_ALLOCATOR: UPSafeCell<RecycleAllocator> =
-        unsafe { UPSafeCell::new(RecycleAllocator::new()) };
+    pub static ref PID_ALLOCATOR: UPSafeCell<PidAllocator> =
+        unsafe { UPSafeCell::new(PidAllocator::new()) };
 }
 
-/// Abstract structure of PID
+/// Bind pid lifetime to `PidHandle`
 pub struct PidHandle(pub usize);
 
 impl Drop for PidHandle {
@@ -57,9 +56,9 @@ impl Drop for PidHandle {
     }
 }
 
-/// Allocate a new PID
+/// Allocate a pid from PID_ALLOCATOR
 pub fn pid_alloc() -> PidHandle {
-    PidHandle(PID_ALLOCATOR.exclusive_access().alloc())
+    PID_ALLOCATOR.exclusive_access().alloc()
 }
 
 /// Return (bottom, top) of a kernel stack in kernel space.
@@ -69,35 +68,25 @@ pub fn kernel_stack_position(app_id: usize) -> (usize, usize) {
     (bottom, top)
 }
 
-/// Kernel stack for a process(task)
-pub struct KernelStack(pub usize);
-
-/// allocate a new kernel stack
-pub fn kstack_alloc() -> KernelStack {
-    let kstack_id = KSTACK_ALLOCATOR.exclusive_access().alloc();
-    let (kstack_bottom, kstack_top) = kernel_stack_position(kstack_id);
-    KERNEL_SPACE.exclusive_access().insert_framed_area(
-        kstack_bottom.into(),
-        kstack_top.into(),
-        MapPermission::R | MapPermission::W,
-    );
-    KernelStack(kstack_id)
-}
-
-impl Drop for KernelStack {
-    fn drop(&mut self) {
-        let (kernel_stack_bottom, _) = kernel_stack_position(self.0);
-        let kernel_stack_bottom_va: VirtAddr = kernel_stack_bottom.into();
-        KERNEL_SPACE
-            .exclusive_access()
-            .remove_area_with_start_vpn(kernel_stack_bottom_va.into());
-        KSTACK_ALLOCATOR.exclusive_access().dealloc(self.0);
-    }
+/// Kernelstack for app
+pub struct KernelStack {
+    pid: usize,
 }
 
 impl KernelStack {
-    /// Push a variable of type T into the top of the KernelStack and return its raw pointer
+    ///Create a kernelstack from pid
+    pub fn new(pid_handle: &PidHandle) -> Self {
+        let pid = pid_handle.0;
+        let (kernel_stack_bottom, kernel_stack_top) = kernel_stack_position(pid);
+        KERNEL_SPACE.exclusive_access().insert_framed_area(
+            kernel_stack_bottom.into(),
+            kernel_stack_top.into(),
+            MapPermission::R | MapPermission::W,
+        );
+        KernelStack { pid: pid_handle.0 }
+    }
     #[allow(unused)]
+    ///Push a value on top of kernelstack
     pub fn push_on_top<T>(&self, value: T) -> *mut T
     where
         T: Sized,
@@ -109,9 +98,19 @@ impl KernelStack {
         }
         ptr_mut
     }
-    /// Get the top of the KernelStack
+    /// Get the value on the top of kernelstack
     pub fn get_top(&self) -> usize {
-        let (_, kernel_stack_top) = kernel_stack_position(self.0);
+        let (_, kernel_stack_top) = kernel_stack_position(self.pid);
         kernel_stack_top
+    }
+}
+
+impl Drop for KernelStack {
+    fn drop(&mut self) {
+        let (kernel_stack_bottom, _) = kernel_stack_position(self.pid);
+        let kernel_stack_bottom_va: VirtAddr = kernel_stack_bottom.into();
+        KERNEL_SPACE
+            .exclusive_access()
+            .remove_area_with_start_vpn(kernel_stack_bottom_va.into());
     }
 }
