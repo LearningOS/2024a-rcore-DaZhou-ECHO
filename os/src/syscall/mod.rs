@@ -35,7 +35,7 @@ pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
     let current_task_id = TASK_MANAGER.get_current_task_id();
     // 先获取可变借用，然后在作用域内使用它
     {
-        let mut inner = TASK_MANAGER.get_inner().exclusive_access();
+        let mut inner: core::cell::RefMut<'_, crate::task::TaskManagerInner> = TASK_MANAGER.get_inner().exclusive_access();
         inner.tasks[current_task_id].task_info.syscall_times[syscall_id] += 1;
     } // 确保借用在此处结束
 
